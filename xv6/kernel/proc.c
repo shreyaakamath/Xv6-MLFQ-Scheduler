@@ -352,13 +352,15 @@ scheduler (void)
 
 
 				if(c0!=-1){
+
 					for(i=0;i<=c0;i++){
 						  if(q0[i]->state != RUNNABLE)
 							  continue;
 
 					  p=q0[i];
 					  proc = q0[i];
-					  cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+					  cprintf("from c0. id =%d name =%s\n",proc->pid,proc->name);
+					  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
 					  switchuvm(p);
 					  p->state = RUNNING;
 					  swtch(&cpu->scheduler, proc->context);
@@ -369,7 +371,7 @@ scheduler (void)
 					  q1[c1] = proc;
 
 					  /*delete proc from q0*/
-					  q0[i]=0;
+					  q0[i]=NULL;
 					  for(j=i;j<=c0-1;j++)
 						  q0[j] = q0[j+1];
 					  c0--;
@@ -383,14 +385,68 @@ scheduler (void)
 
 								  p=q1[i];
 								  proc = q1[i];
-								  cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+								  cprintf("from c1. id =%d name =%s\n",proc->pid,proc->name);
+								  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
 								  switchuvm(p);
 								  p->state = RUNNING;
 								  swtch(&cpu->scheduler, proc->context);
 								  switchkvm();
+								  /*copy proc to lower priority queue*/
+								  c2++;
+								  proc->priority=proc->priority-1;
+								  q2[c2] = proc;
+
+								  /*delete proc from q0*/
+								  q1[i]=NULL;
+								  for(j=i;j<=c1-1;j++)
+									  q1[j] = q1[j+1];
+								  c1--;
 								  proc = 0;
 								}
 				}
+
+				if(c2!=-1){
+									for(i=0;i<=c2;i++){
+													  if(q2[i]->state != RUNNABLE)
+														  continue;
+
+												  p=q2[i];
+												  proc = q2[i];
+												  cprintf("from c2. id =%d name =%s\n",proc->pid,proc->name);
+												  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+												  switchuvm(p);
+												  p->state = RUNNING;
+												  swtch(&cpu->scheduler, proc->context);
+												  switchkvm();
+												  /*copy proc to lower priority queue*/
+												  c3++;
+												  proc->priority=proc->priority-1;
+												  q3[c3] = proc;
+
+												  /*delete proc from q0*/
+												  q2[i]=NULL;
+												  for(j=i;j<=c2-1;j++)
+													  q2[j] = q2[j+1];
+												  c2--;
+												  proc = 0;
+												}
+								}
+				if(c3!=-1){
+									for(i=0;i<=c3;i++){
+													  if(q3[i]->state != RUNNABLE)
+														  continue;
+
+												  p=q3[i];
+												  proc = q3[i];
+												  cprintf("from c3. id =%d name =%s\n",proc->pid,proc->name);
+												 // cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+												  switchuvm(p);
+												  p->state = RUNNING;
+												  swtch(&cpu->scheduler, proc->context);
+												  switchkvm();
+												  proc = 0;
+												}
+								}
 
 
 				release(&ptable.lock);
