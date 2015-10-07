@@ -14,6 +14,7 @@ int c0 =-1;
 int c1=-1;
 int c2=-1;
 int c3=-1;
+int clkPerPrio[4] ={1,2,4,8};
 
 struct
 {
@@ -365,6 +366,7 @@ scheduler (void)
 					  p->state = RUNNING;
 					  swtch(&cpu->scheduler, proc->context);
 					  switchkvm();
+					  p->clicks_q[0]+=clkPerPrio[0];
 					  /*copy proc to lower priority queue*/
 					  c1++;
 					  proc->priority=proc->priority-1;
@@ -391,6 +393,7 @@ scheduler (void)
 								  p->state = RUNNING;
 								  swtch(&cpu->scheduler, proc->context);
 								  switchkvm();
+								  p->clicks_q[1]+=clkPerPrio[1];
 								  /*copy proc to lower priority queue*/
 								  c2++;
 								  proc->priority=proc->priority-1;
@@ -418,6 +421,7 @@ scheduler (void)
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
+												  p->clicks_q[2]+=clkPerPrio[2];
 												  /*copy proc to lower priority queue*/
 												  c3++;
 												  proc->priority=proc->priority-1;
@@ -444,6 +448,7 @@ scheduler (void)
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
+												  p->clicks_q[3]+=clkPerPrio[3];
 												  proc = 0;
 												}
 								}
