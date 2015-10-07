@@ -57,10 +57,10 @@ struct context {
   uint eip;
 };
 
-extern int q0[64];
-extern int q1[64];
-extern int q2[64];
-extern int q3[64];
+extern struct proc* q0[64];
+extern struct proc* q1[64];
+extern struct proc* q2[64];
+extern struct proc* q3[64];
 extern int c0;
 extern int c1;
 extern int c2;
