@@ -5,6 +5,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
 
 struct proc* q0[64];
 struct proc* q1[64];
@@ -15,6 +16,7 @@ int c1=-1;
 int c2=-1;
 int c3=-1;
 int clkPerPrio[4] ={1,2,4,8};
+struct pstat pstat_var;
 
 struct
 {
@@ -54,10 +56,13 @@ allocproc (void)
 				p->clicks = 0;
 				c0++;
 				q0[c0] = p;
-				cprintf("unused insetting to q0 at c0 %d  id = %pid , name =%s, state=%d\n",c0,q0[c0]->pid, q0[c0]->name,q0[c0]->state);
-
-
-
+				pstat_var.inuse[p->pid] = 0;
+				pstat_var.priority[p->pid] = p->priority;
+				pstat_var.ticks[p->pid][0] = 0;
+				pstat_var.ticks[p->pid][1] = 0;
+				pstat_var.ticks[p->pid][2] = 0;
+				pstat_var.ticks[p->pid][3] = 0;
+				pstat_var.pid[p->pid] = p->pid;
 				release(&ptable.lock);
 				return 0;
 
@@ -65,13 +70,17 @@ allocproc (void)
 found:
 				p->state = EMBRYO;
 				p->pid = nextpid++;
+				pstat_var.inuse[p->pid] = 0;
 				p->priority = 0;
 				p->clicks = 0;
 				c0++;
 				q0[c0] = p;
-				cprintf("empryo inserting to q0 at c0 %d pid = %pid , name =%s, state=%d\n",c0,q0[c0]->pid, q0[c0]->name,q0[c0]->state);
-
-
+				pstat_var.priority[p->pid] = p->priority;
+				pstat_var.ticks[p->pid][0] = 0;
+				pstat_var.ticks[p->pid][1] = 0;
+				pstat_var.ticks[p->pid][2] = 0;
+				pstat_var.ticks[p->pid][3] = 0;
+				pstat_var.pid[p->pid] = p->pid;
 				release (&ptable.lock);
 
 				// Allocate kernel stack if possible.
@@ -318,15 +327,15 @@ nextReady (int *q, int *c)
 								pid = q[i];
 								for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 								{
-												cprintf ("in the for loop before if ");
+												//cprintf ("in the for loop before if ");
 												if (p->pid == pid && p->state == RUNNABLE)
 												{
-																cprintf ("runnable process %d", p->pid);
+														//		cprintf ("runnable process %d", p->pid);
 																return p;
 												}
 								}
 				}
-				cprintf ("runnable NULL");
+//				cprintf ("runnable NULL");
 				return p;
 }
 
@@ -357,26 +366,36 @@ scheduler (void)
 					for(i=0;i<=c0;i++){
 						  if(q0[i]->state != RUNNABLE)
 							  continue;
-
 					  p=q0[i];
 					  proc = q0[i];
-					  cprintf("from c0. id =%d name =%s\n",proc->pid,proc->name);
+						cprintf("sheduling process %s\n",p->name);
+					  //cprintf("from c0. id =%d name =%s\n",proc->pid,proc->name);
+					  p->clicks=0;
 					  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+					  pstat_var.inuse[(p->pid)-1] = 1;
 					  switchuvm(p);
 					  p->state = RUNNING;
 					  swtch(&cpu->scheduler, proc->context);
 					  switchkvm();
-					  p->clicks_q[0]+=clkPerPrio[0];
-					  /*copy proc to lower priority queue*/
-					  c1++;
-					  proc->priority=proc->priority-1;
-					  q1[c1] = proc;
+					  pstat_var.inuse[(p->pid)-1] = 0;
+					  pstat_var.ticks[p->pid][0]+=p->clicks;
+					  //cprintf("pid = %d p ->clicks = %d p->name%s\n",p->pid,p->clicks,p->name);
+						cprintf("finished 1 tick %s\n",p->name);
+					  if(p->clicks ==clkPerPrio[0]){
+						  /*copy proc to lower priority queue*/
+						  c1++;
+						  proc->priority=proc->priority+1;
+						  pstat_var.priority[proc->pid] = proc->priority;
+						  q1[c1] = proc;
 
-					  /*delete proc from q0*/
-					  q0[i]=NULL;
-					  for(j=i;j<=c0-1;j++)
-						  q0[j] = q0[j+1];
-					  c0--;
+						  /*delete proc from q0*/
+						  q0[i]=NULL;
+						  for(j=i;j<=c0-1;j++)
+							  q0[j] = q0[j+1];
+						  q0[c0] = NULL;
+						  c0--;
+					  }
+
 					  proc = 0;
 					}
 				}
@@ -387,23 +406,28 @@ scheduler (void)
 
 								  p=q1[i];
 								  proc = q1[i];
-								  cprintf("from c1. id =%d name =%s\n",proc->pid,proc->name);
-								  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+								  pstat_var.inuse[(p->pid)-1] = 1;
 								  switchuvm(p);
 								  p->state = RUNNING;
 								  swtch(&cpu->scheduler, proc->context);
 								  switchkvm();
-								  p->clicks_q[1]+=clkPerPrio[1];
-								  /*copy proc to lower priority queue*/
-								  c2++;
-								  proc->priority=proc->priority-1;
-								  q2[c2] = proc;
+								  pstat_var.inuse[(p->pid)-1] = 0;
+								  pstat_var.ticks[p->pid][1]+=p->clicks;
+								  if(p->clicks ==clkPerPrio[1]){
 
-								  /*delete proc from q0*/
-								  q1[i]=NULL;
-								  for(j=i;j<=c1-1;j++)
-									  q1[j] = q1[j+1];
-								  c1--;
+									  /*copy proc to lower priority queue*/
+									  c2++;
+									  proc->priority=proc->priority+1;
+									  pstat_var.priority[proc->pid] = proc->priority;
+									  q2[c2] = proc;
+
+									  /*delete proc from q0*/
+									  q1[i]=NULL;
+									  for(j=i;j<=c1-1;j++)
+										  q1[j] = q1[j+1];
+									  q1[c1] = NULL;
+									  c1--;
+								  }
 								  proc = 0;
 								}
 				}
@@ -415,23 +439,27 @@ scheduler (void)
 
 												  p=q2[i];
 												  proc = q2[i];
-												  cprintf("from c2. id =%d name =%s\n",proc->pid,proc->name);
-												  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+												  pstat_var.inuse[(p->pid)-1] = 1;
 												  switchuvm(p);
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
-												  p->clicks_q[2]+=clkPerPrio[2];
-												  /*copy proc to lower priority queue*/
-												  c3++;
-												  proc->priority=proc->priority-1;
-												  q3[c3] = proc;
+												  pstat_var.inuse[(p->pid)-1] = 0;
+												  pstat_var.ticks[p->pid][2]+=p->clicks;
+												  if(p->clicks ==clkPerPrio[2]){
+													  /*copy proc to lower priority queue*/
+													  c3++;
+													  proc->priority=proc->priority+1;
+													  pstat_var.priority[p->pid] = p->priority;
+													  q3[c3] = proc;
 
-												  /*delete proc from q0*/
-												  q2[i]=NULL;
-												  for(j=i;j<=c2-1;j++)
-													  q2[j] = q2[j+1];
-												  c2--;
+													  /*delete proc from q0*/
+													  q2[i]=NULL;
+													  for(j=i;j<=c2-1;j++)
+														  q2[j] = q2[j+1];
+													  q2[c2] =NULL;
+													  c2--;
+												  }
 												  proc = 0;
 												}
 								}
@@ -442,13 +470,21 @@ scheduler (void)
 
 												  p=q3[i];
 												  proc = q3[i];
-												  cprintf("from c3. id =%d name =%s\n",proc->pid,proc->name);
-												 // cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
+												 pstat_var.inuse[(p->pid)-1] = 1;
 												  switchuvm(p);
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
-												  p->clicks_q[3]+=clkPerPrio[3];
+												  pstat_var.inuse[(p->pid)-1] = 0;
+												  pstat_var.priority[p->pid] = p->priority;
+												  pstat_var.ticks[p->pid][3]+=p->clicks;
+
+												  /*move process to end of its own queue */
+												  q3[i]=NULL;
+												  for(j=i;j<=c3-1;j++)
+													  q3[j] = q3[j+1];
+												  q3[c3] = proc;
+
 												  proc = 0;
 												}
 								}

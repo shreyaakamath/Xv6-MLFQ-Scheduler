@@ -99,14 +99,9 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  int clkPerPrio[4] ={1,2,4,8};
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER){
-	  /*if the process has run for clkPerPrio clicks then it is time to yield. else we need to incr clicks*/
-	  		if(proc->clicks == clkPerPrio[proc->priority]) {
-	     		yield();
-	  		} else if(proc -> clicks < clkPerPrio[proc->priority]){
-	  			proc->clicks++;
-	  		}
+	  proc->clicks++;
+	  yield();
   }
 
   // Check if the process has been killed since we yielded

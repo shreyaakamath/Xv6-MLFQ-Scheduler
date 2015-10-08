@@ -65,7 +65,7 @@ extern int c0;
 extern int c1;
 extern int c2;
 extern int c3;
-
+extern struct pstat pstat_var;
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
@@ -86,7 +86,6 @@ struct proc {
   char name[16];               // Process name (debugging)
 	int clicks;						       //number of timer clicks the process has run for
 	int priority;								 //current priority of process
-	int clicks_q[4];						 //per queue execution time
 };
 
 // Process memory is laid out contiguously, low addresses first:
