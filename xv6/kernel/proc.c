@@ -56,7 +56,7 @@ allocproc (void)
 				p->clicks = 0;
 				c0++;
 				q0[c0] = p;
-				pstat_var.inuse[p->pid] = 0;
+				pstat_var.inuse[p->pid] = 1;
 				pstat_var.priority[p->pid] = p->priority;
 				pstat_var.ticks[p->pid][0] = 0;
 				pstat_var.ticks[p->pid][1] = 0;
@@ -70,7 +70,7 @@ allocproc (void)
 found:
 				p->state = EMBRYO;
 				p->pid = nextpid++;
-				pstat_var.inuse[p->pid] = 0;
+				pstat_var.inuse[p->pid] = 1;
 				p->priority = 0;
 				p->clicks = 0;
 				c0++;
@@ -368,19 +368,12 @@ scheduler (void)
 							  continue;
 					  p=q0[i];
 					  proc = q0[i];
-						cprintf("sheduling process %s\n",p->name);
-					  //cprintf("from c0. id =%d name =%s\n",proc->pid,proc->name);
-					  p->clicks=0;
-					  //cprintf("executing this  . id=%d , name =%s , state =%d\n",proc->pid, proc->name,proc->state);
-					  pstat_var.inuse[(p->pid)-1] = 1;
+					  p->clicks++;
 					  switchuvm(p);
 					  p->state = RUNNING;
 					  swtch(&cpu->scheduler, proc->context);
 					  switchkvm();
-					  pstat_var.inuse[(p->pid)-1] = 0;
-					  pstat_var.ticks[p->pid][0]+=p->clicks;
-					  //cprintf("pid = %d p ->clicks = %d p->name%s\n",p->pid,p->clicks,p->name);
-						cprintf("finished 1 tick %s\n",p->name);
+					  pstat_var.ticks[p->pid][0]=p->clicks;
 					  if(p->clicks ==clkPerPrio[0]){
 						  /*copy proc to lower priority queue*/
 						  c1++;
@@ -393,6 +386,7 @@ scheduler (void)
 						  for(j=i;j<=c0-1;j++)
 							  q0[j] = q0[j+1];
 						  q0[c0] = NULL;
+						  proc->clicks = 0;
 						  c0--;
 					  }
 
@@ -406,13 +400,12 @@ scheduler (void)
 
 								  p=q1[i];
 								  proc = q1[i];
-								  pstat_var.inuse[(p->pid)-1] = 1;
+								  proc->clicks++;
 								  switchuvm(p);
 								  p->state = RUNNING;
 								  swtch(&cpu->scheduler, proc->context);
 								  switchkvm();
-								  pstat_var.inuse[(p->pid)-1] = 0;
-								  pstat_var.ticks[p->pid][1]+=p->clicks;
+								  pstat_var.ticks[p->pid][1]=p->clicks;;
 								  if(p->clicks ==clkPerPrio[1]){
 
 									  /*copy proc to lower priority queue*/
@@ -426,6 +419,7 @@ scheduler (void)
 									  for(j=i;j<=c1-1;j++)
 										  q1[j] = q1[j+1];
 									  q1[c1] = NULL;
+									  proc->clicks = 0;
 									  c1--;
 								  }
 								  proc = 0;
@@ -439,13 +433,12 @@ scheduler (void)
 
 												  p=q2[i];
 												  proc = q2[i];
-												  pstat_var.inuse[(p->pid)-1] = 1;
+												  proc->clicks++;
 												  switchuvm(p);
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
-												  pstat_var.inuse[(p->pid)-1] = 0;
-												  pstat_var.ticks[p->pid][2]+=p->clicks;
+												  pstat_var.ticks[p->pid][2]=p->clicks;;
 												  if(p->clicks ==clkPerPrio[2]){
 													  /*copy proc to lower priority queue*/
 													  c3++;
@@ -458,6 +451,7 @@ scheduler (void)
 													  for(j=i;j<=c2-1;j++)
 														  q2[j] = q2[j+1];
 													  q2[c2] =NULL;
+													  proc->clicks = 0;
 													  c2--;
 												  }
 												  proc = 0;
@@ -470,14 +464,13 @@ scheduler (void)
 
 												  p=q3[i];
 												  proc = q3[i];
-												 pstat_var.inuse[(p->pid)-1] = 1;
+												  proc->clicks++;
 												  switchuvm(p);
 												  p->state = RUNNING;
 												  swtch(&cpu->scheduler, proc->context);
 												  switchkvm();
-												  pstat_var.inuse[(p->pid)-1] = 0;
 												  pstat_var.priority[p->pid] = p->priority;
-												  pstat_var.ticks[p->pid][3]+=p->clicks;
+												  pstat_var.ticks[p->pid][3]=p->clicks;;
 
 												  /*move process to end of its own queue */
 												  q3[i]=NULL;
@@ -583,11 +576,46 @@ sleep (void *chan, struct spinlock *lk)
 				static void
 wakeup1 (void *chan)
 {
-				struct proc *p;
+	struct proc *p;
+	int i;
+	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+		if (p->state == SLEEPING && p->chan == chan){
+			p->clicks = 0;
+			p->state = RUNNABLE;
+			if(p->priority == 0) {
+				c0++;
+				for(i=c0;i>0;i--) {
+					q0[i] = q0[i-1];
+				}
+				q0[0] = p;
+			}
+			else if(p->priority == 1) {
+				c1++;
+				for(i=c1;i>0;i--) {
+					q1[i] = q1[i-1];
+				}
+				q1[0] = p;
+			}
+			else if(p->priority == 2) {
+				c2++;
+				for(i=c2;i>0;i--) {
+					q2[i] = q2[i-1];
+				}
+				q2[0] = p;
+			}
+			else  {
+				c3++;
+				for(i=c3;i>0;i--) {
+					q3[i] = q3[i-1];
+				}
+				q3[0] = p;
+			}
 
 				for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 								if (p->state == SLEEPING && p->chan == chan)
 												p->state = RUNNABLE;
+		}
+	}
 }
 
 // Wake up all processes sleeping on chan.
